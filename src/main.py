@@ -36,13 +36,15 @@ def contour(contours, mask_inv):
 	x,y,w,h = cv.boundingRect(box)
 	final=frame.copy()
 	final=cv.rectangle(final,(x,y),(x+w,y+h),(0,255,0),2)
-	fh=round(0.84*h)
-	fw=round(0.84*w)
-	l=distance()
+	#Przy zalozeniu odleglosci kamery od pudelka 40 cm
+
+	fh=round(0.54*h)
+	fw=round(0.54*w)
+	l=350-distance()
 	print(f"Wysokosc = {h}px Szerokosc = {w}px")
 	print(f"Wysokosc = {fh} mm Szerokosc = {fw} mm Dlugosc = {l} mm")
 	#cv.imshow("Box",box)
-	#cv.imshow("Final",final)
+	cv.imshow("Final",final)
 
 image = np.zeros((480, 640, 3), dtype=np.uint8)
 image[:,:,0]=255
