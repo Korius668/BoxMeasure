@@ -13,7 +13,11 @@ def  test():
 		print(GPIO.input(ECHO))
 
 def distance(): 
-# Ensure the TRIG pin is set low for a short period before sending the pulse 
+	
+	pulse_start = None
+	pulse_end = None
+
+		# Ensure the TRIG pin is set low for a short period before sending the pulse 
 	GPIO.output(TRIG, False) 
 	time.sleep(2) # Send the pulse 
 	print("Sending pulse")
@@ -35,7 +39,6 @@ try:
 		dist = distance()
 		print(f"Distance: {dist} cm") 
 		time.sleep(1)
-		
  
 except KeyboardInterrupt: 
 	print(6)
