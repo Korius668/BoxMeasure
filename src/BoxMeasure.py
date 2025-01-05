@@ -11,27 +11,6 @@ import os
 
 from LCDManager import LCDManager
 
-def setup_logger(log_file: str):
-    """
-    Konfiguruje logger zapisujący błędy do pliku.
-    """
-    # Tworzenie folderu na logi, jeśli nie istnieje
-    os.makedirs(os.path.dirname(log_file), exist_ok=True)
-
-    # Konfiguracja logowania
-    logging.basicConfig(
-        filename=log_file,
-        filemode='a',  # 'a' oznacza dopisywanie do istniejącego pliku
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        level=logging.ERROR  # Loguj tylko błędy i wyższe poziomy
-    )
-
-def log_error(message: str):
-    """
-    Funkcja zapisująca błędy do pliku logów.
-    """
-    logging.error(message)
-
 class BoxMeasure():
 	
 	def __init__(self,camera_num = 0, trig = 17, echo = 27, b_l = 7, b_r = 8, file_name="dane.csv"):
@@ -46,7 +25,7 @@ class BoxMeasure():
 		b_r: 	Numer pinu na GPIO, według numeracji BCM. Odpowiada za odbieranie sygnału z prawego przycisku.
 		file_name: Definuje nazwę pliku do którego zapisywane będą wyniki.
 		"""
-
+		logging.debug("Konstruktor BoxMeasure")
 		self.__trig = trig
 		self.__echo = echo
 		self.__b_l = b_l
@@ -54,9 +33,10 @@ class BoxMeasure():
 		self.__file_name = file_name
 
 		try:
+			
 			self.lcd = LCDManager(0x27)
-			self.lcd.display_message("Loading GPIO","Prosze czekac")
-
+			self.lcd.display_message("Loading GPIO","Proszę czekac")
+			logging.info("Loading GPIO. Proszę czekac")
 			# Ustawienie trybu GPIO
 			GPIO.setmode(GPIO.BCM)
 
@@ -65,57 +45,55 @@ class BoxMeasure():
 			GPIO.setup(b_l, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 			GPIO.setup(b_r, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 		except RuntimeError as e:
-			print(f"Błąd konfiguracji GPIO: {e}")
-			log_error(f"Błąd konfiguracji GPIO: {e}")
+			#logging.info(f"Błąd konfiguracji GPIO: {e}")
+			logging.error(f"Błąd konfiguracji GPIO: {e}")
 			GPIO.cleanup()
 			sys.exit(1)  # Bezpieczne zakończenie programu w przypadku błędu
 		
-			
-			# Konfiguracja adresu i portu I2C dla LCD
-			self.lcd.display_message("Loading Camera","Prosze czekac")
-			print("Loading Camera. Prosze czekac")
+		# Konfiguracja adresu i portu I2C dla LCD
+		self.lcd.display_message("Loading Camera","Proszę czekac")
+		logging.info("Loading Camera. Proszę czekac")
+
 		try:
 			self.cap = cv.VideoCapture(camera_num)
-
 			if not self.cap.isOpened():
-				print("Błąd: Nie można otworzyć kamery. Próbuję ponownie...")
 				self.lcd.display_message("Can't open camera","Probuje ponownie")
+				logging.error("Błąd: Nie można otworzyć kamery. Próbuję ponownie...")
 				time.sleep(1)
 				self.cap = cv.VideoCapture(camera_num)
 				if not self.cap.isOpened():
 					raise Exception("Cannot open camera")
 		except Exception("Cannot open camera"):
-			print(f"Nie można znaleźć kamery: {camera_num}")
-			log_error(f"Nie można znaleźć kamery: {camera_num}")
+			logging.error(f"Nie można znaleźć kamery: {camera_num}")
 			if camera_num!= 0:
-				print("Spróbujemy z kamerą nr 0")
+				logging.info("Spróbujemy z kamerą nr 0")
 				self.cap = cv.VideoCapture(0)
 			else:
-				print("Wyłączam program")
+				logging.info("Wyłączam program")
 				GPIO.cleanup()
 				sys.exit(1)
-		
+		logging.info("Wybierz tryb działania programu.")
 		self.__green_or_black()
 		
 		try:
 			self.index, self.h_l, self.w_l, self.l_l = load_last_measurement(self.__file_name)
-		except Exception("File is empty"):
-			log_error("File is empty")
+		except  Exception as e:
+			logging.warning(f"{e}")
 			self.index, self.h_l, self.w_l, self.l_l = -1,0,0,0
-		except Exception("File doesn't exist"):
-			log_error("File doesn't exist")
-			self.index, self.h_l, self.w_l, self.l_l = -1,0,0,0
+		
 
-			self.h_n = 0
-			self.w_n = 0
-			self.l_n = 0	
+		self.h_n = 0
+		self.w_n = 0
+		self.l_n = 0	
 		
 	def __green_or_black(self):
+		#logging.debug("green_or_black")
 		self.lcd.display_message("L - green","R - black")
 		L, R = self.__wait_for_button_press()
 		self.greenScreen = L
 	
 	def __wait_for_button_press(self):
+		#logging.debug("wait_for_button_press")
 		L, R = False, False
 		while not (L or R):
 			L, R = self.__check_buttons()
@@ -131,7 +109,8 @@ class BoxMeasure():
 		c_1 = self.__check_button(self.__b_l)
 		c_2 = self.__check_button(self.__b_r)
 		time.sleep(0.1)
-
+		if c_1 == True and c_2 == True:
+			raise KeyboardInterrupt
 		return c_1 == True and self.__check_button(self.__b_l) == False, c_2 == True and self.__check_button(self.__b_r) == False
 
 	def __check_button(self,button):
@@ -174,7 +153,7 @@ class BoxMeasure():
 			if not ret:
 				raise Exception("Can't receive frame")
 		except Exception("Can't receive frame"):
-			log_error("Can't receive frame")
+			logging.error("Can't receive frame")
 			for i in range(1,10):
 				self.lcd.display_message("Problem z kamera",f"Probuje ponownie{i}")
 				time.sleep(1)
@@ -266,13 +245,12 @@ class BoxMeasure():
 				l2=	self.__distance()
 			except ValueError:
 				l=0
-				print("Nie udało się uzyskać pomiaru, zwracam wartosc 0")
-				log_error("Nie udało się uzyskać pomiaru, zwracam wartosc 0")
+				logging.warning("Nie udało się uzyskać pomiaru, zwracam wartosc 0")
 			else:
 				l=35-l2
 			finally:
-				#print(f"Wysokosc = {h}px Szerokosc = {w}px")
-				#print(f"Wysokosc = {fh} cm Szerokosc = {fw} cm Dlugosc = {l} cm")
+				#logging.info(f"Wysokosc = {h}px Szerokosc = {w}px")
+				#logging.info(f"Wysokosc = {fh} cm Szerokosc = {fw} cm Dlugosc = {l} cm")
 				#lcd.wysw(fh,fw,l,0,0,0)
 				return fh, fw, l
 				#cv.imshow("Box",box)
@@ -313,7 +291,7 @@ class BoxMeasure():
 			self.cap.release()
 		self.lcd.clear()
 		GPIO.cleanup()
-		print("GPIO , LCD i Kamera zostały wyczyszczone.")
+		logging.info("GPIO , LCD i Kamera zostały wyczyszczone.")
 
 def load_last_measurement(file_name):
 	"""
@@ -322,7 +300,7 @@ def load_last_measurement(file_name):
 	:return: Ostatni numer i wyniki [wysokość, szerokość, długość] lub None, jeśli plik jest pusty.
 	"""
 	if not os.path.isfile(file_name):
-		raise Exception("File doesn't exist") # Domyślny numer porządkowy i dane
+		raise Exception("File doesn't exist")
 
 	with open(file_name, mode='r', newline='') as file:
 		reader = csv.reader(file)
